@@ -20,13 +20,16 @@ every time you open the notebook:
 library(tidyverse)
 library(here)
 ```
+The code below shows how R performs basic calculations. The brackets make R calculate 2 + 2 first, which changes the final answer.
 
 ## Part 1 — Run a chunk, write a sentence, render
-
 ```{r}
-# your code here
+3 + 5 + 10
+10 * (5 + 1)
+2 ** 10
+64 / 2 + 2
+64 / (2 + 2)
 ```
-
 ## Part 2 — Read the data and look at it
 
 ```{r}

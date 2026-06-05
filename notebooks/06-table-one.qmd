@@ -30,24 +30,24 @@ For each non-pid column of `table_01` (`arm`, `smoker`, `age`, `education`, `sex
 
 **1. `arm`**
 
-- How will `tbl_summary(by = arm)` summarise it? *Your answer:*
-- What test will `add_p()` pick? *Your answer:*
+- How will `tbl_summary(by = arm)` summarise it? *Your answer:* arm is catergorical. therefore it will be summarised as counts. 
+- What test will `add_p()` pick? *Your answer:* no test. 
 
 **2. `smoker`**
 
-- *Your answer (summary, test):*
+- *Your answer (summary, test):* categorical. Counts and percentages of smokers and non-smokers within each arm. Chi-square test
 
 **3. `age`**
 
-- *Your answer (summary, test):*
+- *Your answer (summary, test):* this is numeric. Mean (SD) because age is a continuous variable. t-test can be used. 
 
 **4. `education`**
 
-- *Your answer (summary, test):*
+- *Your answer (summary, test):* categorical. Counts and percentages for each education category.Chi-square test can be used. 
 
 **5. `sex`**
 
-- *Your answer (summary, test):*
+- *Your answer (summary, test):* categorical. Counts and percentages of males and females within each arm. Chi-square test can be used. 
 
 ## Part 2 — Build
 
@@ -63,12 +63,20 @@ table_01 |>
 ```{r}
 # step 2: add p-values
 # (modify the previous chunk by adding `|> add_p()`)
+table_01 |>
+  select(-pid, -sex) |>
+  tbl_summary(by = arm) |>
+add_p()
 ```
 
 ```{r}
 # step 3: override age to mean (SD) + t-test
 # statistic = list(age ~ "{mean} ({sd})")
 # test = list(age ~ "t.test")
+table_01 |>
+  select(-pid, -sex) |>
+  tbl_summary(by = arm) |>
+add_p()
 ```
 
 ```{r}

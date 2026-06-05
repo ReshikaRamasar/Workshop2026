@@ -1,0 +1,252 @@
+---
+title: "Study Guide for the Menstrual Cycle Dataset"
+subtitle: "A beginner-friendly tour of the concepts and data"
+format:
+  html:
+    toc: true
+    code-fold: false
+    embed-resources: true
+editor: visual
+---
+
+## What is this study about?
+
+27 women were followed across **one menstrual cycle**. At 4 time points per person, a biological sample was collected (a vaginal swab). The goal is to see how the immune system changes throughout the cycle — and whether **hormonal birth control** or **PCOS** changes that pattern.
+
+The 4 time points are:
+
+| Time point     | What it means                                          |
+|----------------|--------------------------------------------------------|
+| `onset`        | Start of the period (day 1–2 of bleeding)              |
+| `end_bleeding` | When bleeding has just stopped                         |
+| `week_post`    | One week after bleeding ends (roughly mid-cycle)       |
+| `week_prior`   | One week before the next period starts (pre-menstrual) |
+
+Because each person is sampled at all 4 time points, each person acts as **their own control** — you track changes *within* a person over the month, rather than comparing different people.
+
+------------------------------------------------------------------------
+
+## The 4 data files and how they connect
+
+```         
+┌─────────────────────────────────┐
+│  01_participant_metadata_period │  ← Who are they?
+│  (pid, age, birth control,      │    (27 rows, 1 per person)
+│   PCOS status, period product)  │
+└──────────┬──────────────────────┘
+           │ joined by pid
+           ▼
+┌─────────────────────────────────┐
+│  00_sample_ids_period           │  ← The bridge (connects everything)
+│  (pid, time_point, arm,         │    (108 rows, 4 per person)
+│   sample_id)                    │
+└──────┬──────────────────────────┘
+       │
+       ├─── sample_id ──► 02_luminex_period        (cytokines)
+       │
+       └─── sample_id ──► 03_flow_cytometry_period  (cell counts)
+```
+
+**To analyse the data, you almost always start by joining** these tables together so that every measurement row also has the participant's information and the time point.
+
+------------------------------------------------------------------------
+
+## File 1: `00_sample_ids_period` — The bridge
+
+This is the smallest, simplest file. It tells you:
+
+| Column | What it means |
+|--------------------------|---------------------------------------------|
+| `pid` | Participant ID (`pid_01` through `pid_27`) |
+| `time_point` | When the sample was taken — one of 4 phases |
+| `arm` | Study group: `birth_control` or `no_birth_control` |
+| `sample_id` | Unique code for this biological sample (used in the other files) |
+
+There are **108 rows** (27 people × 4 time points).
+
+------------------------------------------------------------------------
+
+## File 2: `01_participant_metadata_period` — Who the participants are
+
+One row per person with background information:
+
+| Column | What it means | Possible values |
+|------------------|--------------------------|----------------------------|
+| `pid` | Participant ID (links to the bridge table) | `pid_01` – `pid_27` |
+| `arm` | Birth control group | `birth_control`, `no_birth_control` |
+| `age` | Age in years | 26 – 41 |
+| `pcos_status` | Does she have PCOS? | `pcos`, `no disease` |
+| `period_product` | What menstrual product she uses | `tampon`, `pad`, `menstrual_cup` |
+| `sex` | All female | `female` |
+
+**27 rows** — one per participant.
+
+------------------------------------------------------------------------
+
+## File 3: `02_luminex_period` — Cytokines (immune signals)
+
+### What are cytokines?
+
+Cytokines are **signalling proteins** that immune cells use to talk to each other. Think of them as text messages between cells:
+
+- *"There's an injury here — send help!"* → inflammatory cytokines
+- *"It's time to calm down"* → anti-inflammatory cytokines
+- *"Come here and fight this virus"* → chemokines that attract T cells
+
+### What is Luminex?
+
+A **Luminex** machine measures the concentration of many cytokines at once from a tiny sample of fluid. It uses microscopic beads — each bead has a different coating that grabs onto one specific cytokine. The machine counts how many beads are glowing and works out the concentration.
+
+### How the data looks
+
+This file is in **long format** — each sample has multiple rows, one per cytokine measured. So 108 samples × 8 cytokines = **864 rows**.
+
+| Column      | Example                 | What it means                  |
+|-------------|-------------------------|--------------------------------|
+| `sample_id` | `SAMP048`               | Which sample this came from    |
+| `cytokine`  | `IL-6`                  | Which cytokine was measured    |
+| `conc`      | `0.09` pg/mL            | How much was detected          |
+| `limits`    | `below_detection_limit` | Whether the result is reliable |
+
+### What each cytokine generally signals
+
+| Cytokine   | Meaning                                               |
+|------------|-------------------------------------------------------|
+| **IL-1a**  | Inflammation, tissue damage — released when cells die |
+| **IL-1b**  | Major alarm signal — triggers fever, inflammation     |
+| **IL-6**   | Broad inflammation, immune activation                 |
+| **TNFa**   | Powerful inflammatory signal ("fire alarm")           |
+| **MIG**    | Attracts T cells to where they're needed              |
+| **IFNg**   | Anti-viral, activates killer cells                    |
+| **IP-10**  | Calls immune cells to infected or inflamed tissue     |
+| **MIP-3a** | Recruits cells to mucosal surfaces (like the vagina)  |
+
+### About those limits
+
+The `limits` column has 3 possible values:
+
+| Value | Meaning | What to do |
+|------------------|-----------------------|-------------------------------|
+| `not_censored` | The machine measured it reliably | Use the `conc` value as-is |
+| `below_detection_limit` | It was too low to measure | You could: replace with 0, replace with half the minimum, or keep it as a flag |
+| `above_detect_limit` | It was too high to measure | The real value is even higher than shown |
+
+This is normal — some cytokines just aren't active in certain samples.
+
+------------------------------------------------------------------------
+
+## File 4: `03_flow_cytometry_period` — Immune cell counts
+
+### What is flow cytometry?
+
+**Flow cytometry** is a technique that counts and identifies cells by type. Here's the idea:
+
+1.  The sample is stained with fluorescent dye that sticks to specific proteins on the surface of cells (these proteins are called **markers**)
+2.  The cells flow single-file past a laser beam
+3.  When a cell is hit by the laser, it glows if it has the marker
+4.  The machine counts how many cells glowed
+
+Think of it like scanning a crowd at a train station: - Count everyone wearing *any* hat (all immune cells) - Of those with hats, count how many are wearing *red* hats (neutrophils) - Of those without red hats, count how many are wearing *blue* hats (T cells) - Of those with blue hats, count how many have *stripes* (helper T cells) - etc.
+
+### The gating hierarchy — a decision tree
+
+The scientists set up a **gating strategy** — a series of yes/no decisions that classify every cell. Here's the tree for this study:
+
+```         
+All cells from the sample (e.g. 445,953 cells)
+│
+├── live_cd19_negative
+│   = all live cells that are NOT B cells
+│   (this is your starting point for analysis)
+│
+├── cd45_negative
+│   = cells that are NOT immune cells
+│     (skin cells, other non-immune cells)
+│
+└── cd45_positive
+    = immune cells (white blood cells)
+      CD45 is a marker found on ALL white blood cells
+      │
+      ├── neutrophils
+      │   = first-responder immune cells
+      │     They are the most common white blood cell.
+      │     They rush to fight bacteria, then die quickly.
+      │
+      └── non_neutrophils
+          = other immune cells (not neutrophils)
+          │
+          ├── cd3_negative
+          │   = not T cells (could be B cells, NK cells, etc.)
+          │
+          └── cd3_positive
+              = T cells (CD3 is a marker on all T cells)
+              │
+              ├── cd4_t_cells
+              │   = "helper" T cells
+              │     They coordinate the immune response.
+              │     Like generals giving orders.
+              │
+              └── cd8_t_cells
+                  = "killer" T cells
+                    They destroy infected cells.
+                    Like soldiers on the front line.
+```
+
+### A real example to make it concrete
+
+Let's look at sample `SAMP048` from the actual data:
+
+| Column | Count | Translation |
+|---------------------|------------------|---------------------------------|
+| `live_cd19_negative` | **445,953** | Total live cells in this sample |
+| `cd45_negative` | **393,595** | 394k are NOT immune cells (88% — mostly skin/vaginal cells) |
+| `cd45_positive` | **50,445** | 50k are immune cells (white blood cells) |
+| `neutrophils` | **42,589** | 42k of those are neutrophils (the majority) |
+| `cd4_t_cells` | **1,905** | 1.9k are helper T cells |
+| `cd8_t_cells` | **1,390** | 1.4k are killer T cells |
+
+So in this sample: - Most cells are **non-immune** (skin cells from the swab) — that's normal - Of the immune cells, **most are neutrophils** — also normal for a mucosal surface like the vagina - There's a small but measurable number of **T cells**
+
+### Tip: percentages are often more useful than raw counts
+
+Because each swab picks up a different number of total cells, you usually want to convert to percentages:
+
+```         
+cd45_positive_percent = cd45_positive / live_cd19_negative × 100
+neutrophil_percent    = neutrophils / cd45_positive × 100
+cd4_percent_of_tcells = cd4_t_cells / cd3_positive × 100
+```
+
+This normalises for sample size so you can compare across samples fairly.
+
+------------------------------------------------------------------------
+
+## Putting it all together — a sample workflow
+
+Say you want to ask: **"Do IL-6 levels change across the menstrual cycle?"**
+
+Here's the step-by-step:
+
+1.  **Merge** `00_sample_ids_period` with `02_luminex_period` on `sample_id`
+
+2.  **Filter** to only rows where `cytokine == "IL-6"`
+
+3.  **Filter** to only rows where `limits == "not_censored"` (you might also keep censored ones and treat them as 0 — depends on your approach)
+
+4.  **Now you have**: for each person (`pid`), at each time point (`onset`, `end_bleeding`, `week_post`, `week_prior`), their IL-6 level
+
+5.  **Visualise** — for example, a line chart with time on the x-axis and IL-6 on the y-axis, one line per person, coloured by `arm`
+
+6.  **Look for patterns**: Is IL-6 highest at `onset` (period = inflammatory)? Does it drop after bleeding stops? Do birth control users show less cycling?
+
+------------------------------------------------------------------------
+
+## Things to watch out for
+
+- **Small sample size**: 27 people is fine for spotting trends but too small for subtle effects. Don't expect p-values below 0.05 unless the effect is big.
+
+- **Many values are below detection limit**: For cytokines like IL-6 and TNFa, lots of samples come back as undetectable. That's biologically normal — those cytokines shouldn't be high in a healthy vagina. You need to decide how to handle them (drop them? treat as 0? treat as half the detection threshold?).
+
+- **Both tables have 108 samples** — every sample in the bridge table appears in both the Luminex and flow cytometry tables. That makes joining clean and easy.
+
+- **The 4 time points per person are your biggest strength**. A within-person comparison is much more powerful than comparing across different groups of people, because each person acts as their own baseline.

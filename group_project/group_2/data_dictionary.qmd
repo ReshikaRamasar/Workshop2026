@@ -1,0 +1,684 @@
+---
+title: "Workshop Data Dictionary — Menstrual Cycle Study"
+subtitle: "Group 2 — Exploring immune markers across the menstrual cycle"
+format:
+  html:
+    toc: true
+    code-fold: true
+    embed-resources: true
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+library(tidyverse)
+library(knitr)
+
+data_dir <- here::here("data")
+```
+
+## Overview
+
+This document explores the Group B menstruation dataset in the `data/` folder. For each file we read it in with `read_csv()`, inspect its structure with `glimpse()`, and describe what each row represents and what each column means.
+
+The dataset comes from a **menstrual cycle study** that follows participants across their cycle to see how immune markers and cell populations change over time. Participants are grouped by whether they use hormonal birth control or not. It contains four files:
+
+- `00_sample_ids_period.csv` — sample identifiers and time points
+- `01_participant_metadata_period.csv` — participant background information
+- `02_luminex_period.csv` — cytokine (immune protein) concentrations
+- `03_flow_cytometry_period.csv` — immune cell counts from flow cytometry
+
+------------------------------------------------------------------------
+
+# 🩸 `group_b_menstruation/` — Menstrual Cycle Study
+
+This study follows participants across their menstrual cycle to see how immune markers and cell populations change over time. Participants are grouped by whether they use hormonal birth control or not.
+
+## 🆔 00_sample_ids_period.csv
+
+```{r}
+sample_ids_period <- read_csv(file.path(data_dir, "group_b_menstruation", "00_sample_ids_period.csv"))
+glimpse(sample_ids_period)
+```
+
+**What a row represents:** one biological sample from one participant at one menstrual cycle time point.
+
+| Column | Type | Meaning |
+|-------------------|-------------------|----------------------------------|
+| `pid` | **Identifier** | Participant ID |
+| `time_point` | **Categorical** | When in the menstrual cycle the sample was taken: `onset` (start of period), `end_bleeding`, `week_post` (one week after bleeding ends), or `week_prior` (one week before the next period) |
+| `arm` | **Categorical** | Whether the participant uses hormonal contraception: `birth_control` or `no_birth_control` |
+| `sample_id` | **Identifier** | Unique sample identifier (prefix `SAMP`) |
+
+------------------------------------------------------------------------
+
+## 👤 01_participant_metadata_period.csv
+
+```{r}
+meta_period <- read_csv(file.path(data_dir, "group_b_menstruation", "01_participant_metadata_period.csv"))
+glimpse(meta_period)
+```
+
+**What a row represents:** one participant, with demographic and health information.
+
+| Column | Type | Meaning |
+|-------------------|-------------------|----------------------------------|
+| `pid` | **Identifier** | Participant ID |
+| `arm` | **Categorical** | `birth_control` or `no_birth_control` |
+| `age` | **Numeric** | Age in years |
+| `pcos_status` | **Categorical** | Whether the participant has Polycystic Ovary Syndrome: `pcos` or `no disease` |
+| `period_product` | **Categorical** | Type of menstrual product used (`tampon`, `pad`, `menstrual_cup`) |
+| `sex` | **Categorical** | All participants are `female` |
+
+------------------------------------------------------------------------
+
+## 📊 02_luminex_period.csv
+
+```{r}
+luminex_period <- read_csv(file.path(data_dir, "group_b_menstruation", "02_luminex_period.csv"))
+glimpse(luminex_period)
+```
+
+**What a row represents:** one cytokine measurement from one sample, in long format (each sample has multiple rows, one per cytokine measured).
+
+| Column | Type | Meaning |
+|-------------------|-------------------|----------------------------------|
+| `sample_id` | **Identifier** | Links to the sample (from `00_sample_ids_period.csv`) |
+| `cytokine` | **Categorical** | Cytokine name (e.g. `IL-1a`, `IL-1b`, `IL-6`, `TNFa`, `MIG`, `IFNg`, `IP-10`, `MIP-3a`) |
+| `conc` | **Numeric** | Measured concentration in pg/mL |
+| `limits` | **Categorical** | Censoring status: `not_censored` (reliable), `below_detection_limit` (too low to detect), or `above_detect_limit` (too high) |
+
+------------------------------------------------------------------------
+
+## 🔬 03_flow_cytometry_period.csv
+
+```{r}
+flow_period <- read_csv(file.path(data_dir, "group_b_menstruation", "03_flow_cytometry_period.csv"))
+glimpse(flow_period)
+```
+
+**What a row represents:** cell counts from flow cytometry for one sample (immune cell populations).
+
+| Column | Type | Meaning |
+|--------------------|------------------|----------------------------------|
+| `sample_id` | **Identifier** | Links to the sample (from `00_sample_ids_period.csv`) |
+| `live_cd19_negative` | **Numeric** | Count of live cells that are not B cells (CD19⁻) |
+| `cd45_negative` | **Numeric** | Count of CD45⁻ cells (non-immune cells) |
+| `cd45_positive` | **Numeric** | Count of CD45⁺ cells (immune cells — all white blood cells express CD45) |
+| `neutrophils` | **Numeric** | Count of neutrophils (the most abundant type of white blood cell, first responders to infection) |
+| `non_neutrophils` | **Numeric** | Immune cells that are not neutrophils |
+| `cd3_negative` | **Numeric** | Cells that are CD3⁻ (not T cells) |
+| `cd3_positive` | **Numeric** | Cells that are CD3⁺ (T cells) |
+| `cd4_t_cells` | **Numeric** | CD4⁺ T cells ("helper" T cells, coordinate the immune response) |
+| `cd8_t_cells` | **Numeric** | CD8⁺ T cells ("killer" T cells, destroy infected cells) |
+
+The columns trace a gating hierarchy: total immune cells → neutrophils vs. others → T cells → CD4⁺ vs. CD8⁺ subsets.
+
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+
+# ❓ Data Q&A
+
+Answers to common questions about this dataset.
+
+------------------------------------------------------------------------
+
+### How many participants are in the study? How many observations per participant?
+
+**27 participants** are in the study. Every single participant provided exactly **4 samples** (one at each time point: `onset`, `end_bleeding`, `week_post`, `week_prior`), giving us a perfectly balanced dataset of **108 total samples** (27 × 4).
+
+This is great for within-person analyses — you can track how each person's immune markers change across their own cycle, rather than comparing different people at different time points.
+
+Of the 27 participants, 15 use hormonal birth control and 12 do not. The birth control group contributed 60 samples, the no-birth-control group contributed 48.
+
+------------------------------------------------------------------------
+
+### How are the numeric variables distributed? Are any heavily skewed?
+
+**Age** is reasonably well-behaved: range 26–41, median 31, mean 31.4, with most participants clustered around 30–34. No outliers.
+
+**Cytokine concentrations** (pg/mL) are **heavily right-skewed**. For every cytokine, the mean is much larger than the median:
+
+| Cytokine | Median | Mean | Max  | Skewed?                                        |
+|---------------|---------------|---------------|---------------|---------------|
+| IL-1a    | 68.8   | 207  | 2500 | ⚠️ Very skewed — one huge outlier              |
+| IL-1b    | 2.9    | 30.7 | 581  | ⚠️ Very skewed                                 |
+| IL-6     | 0.78   | 13.8 | 521  | ⚠️ Very skewed                                 |
+| TNFa     | 0.21   | 4.66 | 175  | ⚠️ Very skewed (median is the detection limit) |
+| MIG      | 25.5   | 194  | 3660 | ⚠️ Very skewed                                 |
+| IFNg     | 1.53   | 3.31 | 55.4 | Moderately skewed                              |
+| IP-10    | 8.77   | 56.9 | 1927 | ⚠️ Very skewed                                 |
+| MIP-3a   | 2.62   | 12.9 | 271  | ⚠️ Very skewed                                 |
+
+**Suspicious values?** None that look like data-entry errors. The extreme max values (like IL-1a at 2500 pg/mL or MIG at 3660 pg/mL) are real measurements — they come from `not_censored` samples, so the machine detected them reliably. When working with cytokine data, analysts typically **log-transform** these values to make them more normally distributed.
+
+**Flow cytometry cell counts** are also right-skewed but less extreme. The cell populations span a wide range (total cells per sample from \~50,000 to over 1.2 million), which reflects biological variation in sample quality rather than anything suspicious.
+
+------------------------------------------------------------------------
+
+### Where are the missing values, and what do you think they mean?
+
+**There are no explicit NA values anywhere in this dataset.** All four files are complete with no blank cells.
+
+However, the Luminex cytokine data has a special kind of missingness: **censored values**. The `limits` column tells you whether a measurement was reliable:
+
+- **`not_censored`** (657 values) — reliable, usable as-is
+- **`below_detection_limit`** (206 values) — the cytokine was present but at a level too low for the machine to measure precisely. The `conc` is reported at the detection limit
+- **`above_detect_limit`** (1 value) — the cytokine was too concentrated to measure. Only 1 case (IL-1a)
+
+**TNFa** is the worst affected — over half of its measurements (57 out of 108) are below the detection limit. IL-6 (39) and IFNg (38) also have many below-detection readings. IP-10 has the fewest (only 6).
+
+**What does this mean?** These aren't truly "missing" — we know the cytokine was below the machine's detection floor. But the exact value is uncertain, so in an analysis you'd need to decide how to handle them: use them as-is (treating the limit as the value), substitute a fraction of the limit (e.g., limit ÷ 2), or exclude them.
+
+**No participants are missing entire time points** — every participant has all 4 samples, and all 108 samples have both Luminex and flow cytometry measurements. This is a clean, complete longitudinal dataset.
+
+------------------------------------------------------------------------
+
+# 📈 Exploratory Plots: IP-10 (Most Skewed Cytokine)
+
+Among all 8 cytokines, **IP-10** has the strongest right skew (skewness = 8.03, mean/median ratio = 6.5). Below we explore its distribution step by step, showing why log-transformation is useful and how the pattern breaks down by group.
+
+------------------------------------------------------------------------
+
+### Plot 1: Raw Distribution of IP-10
+
+```{r}
+#| label: fig-ip10-raw
+#| fig-cap: "Raw IP-10 concentration distribution"
+#| fig-width: 7
+#| fig-height: 5
+
+ip10 <- luminex_period %>%
+  filter(cytokine == "IP-10") %>%
+  left_join(sample_ids_period %>% select(sample_id, arm), by = "sample_id")
+
+ggplot(ip10, aes(x = conc)) +
+  geom_histogram(bins = 25, fill = "#4A90D9", color = "white", alpha = 0.85) +
+  labs(
+    title = "IP-10 Concentration Distribution (Raw)",
+    subtitle = "Skewness = 8.03 — most right-skewed cytokine in the dataset",
+    x = "IP-10 concentration (pg/mL)",
+    y = "Count"
+  ) +
+  theme_minimal(base_size = 13)
+```
+
+**What we learned:** The raw distribution is extremely right-skewed — almost all values are clustered near 0, with a long tail stretching to nearly 2000 pg/mL. The histogram is dominated by that left-side spike, making it impossible to see any structure in the data. Most information is hidden in a tiny sliver of the x-axis. This confirms that raw concentrations are not suitable for plotting or modeling without transformation.
+
+------------------------------------------------------------------------
+
+### Plot 2: Log₁₀-Transformed Distribution of IP-10
+
+```{r}
+#| label: fig-ip10-log
+#| fig-cap: "Log-transformed IP-10 concentration distribution"
+#| fig-width: 7
+#| fig-height: 5
+
+ggplot(ip10, aes(x = log10(conc))) +
+  geom_histogram(bins = 25, fill = "#E67E22", color = "white", alpha = 0.85) +
+  labs(
+    title = "IP-10 Distribution After Log₁₀ Transformation",
+    subtitle = "Log transformation reveals a roughly normal (bell-shaped) distribution",
+    x = "log₁₀(IP-10 concentration in pg/mL)",
+    y = "Count"
+  ) +
+  theme_minimal(base_size = 13)
+```
+
+**What we learned:** After log transformation, the distribution becomes roughly bell-shaped (approximately normal). We can now see that most IP-10 values cluster around 1–2 on the log scale (which is 10–100 pg/mL in raw units), with a smaller secondary mode of low values near 0. The extreme right tail is now pulled in and visible. This is why cytokine data is almost always log-transformed before analysis — it turns a hard-to-read spike into a workable distribution that plays nicely with statistical tests and linear models.
+
+------------------------------------------------------------------------
+
+### Plot 3: IP-10 by Birth-Control Group
+
+```{r}
+#| label: fig-ip10-group
+#| fig-cap: "IP-10 concentration by birth-control group"
+#| fig-width: 7
+#| fig-height: 5
+
+ggplot(ip10, aes(x = arm, y = conc, fill = arm)) +
+  geom_violin(alpha = 0.6, trim = FALSE) +
+  geom_boxplot(width = 0.15, fill = "white", outlier.shape = NA) +
+  geom_jitter(width = 0.05, alpha = 0.5, size = 1.8) +
+  scale_fill_manual(values = c("birth_control" = "#2ECC71", "no_birth_control" = "#E74C3C")) +
+  scale_x_discrete(labels = c("birth_control" = "Birth Control", "no_birth_control" = "No Birth Control")) +
+  labs(
+    title = "IP-10 Concentration by Birth-Control Group",
+    subtitle = "Violin + boxplot + jitter shows both groups have similar skew",
+    x = "",
+    y = "IP-10 concentration (pg/mL)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none")
+```
+
+**What we learned:** Both birth-control groups show the same extreme right skew, with a few high outliers in the no-birth-control group stretching above 1500 pg/mL. The violin shapes look almost identical — both groups are dominated by low values with long tails. However, the raw scale again makes comparison difficult. A better version would use log-transformed y-axis values so we can see whether the *central tendency* differs between groups. This plot motivates a follow-up: does birth control shift the whole distribution, or just the extremes? A t-test on log-transformed IP-10 would answer this cleanly.
+
+------------------------------------------------------------------------
+
+# 💡 Potential Biological Questions
+
+Here are 5 biologically meaningful questions you could investigate with this dataset in Session 2. Each one explains which tables to use, which variables matter, and why it's worth asking.
+
+------------------------------------------------------------------------
+
+### 1. Do cytokine levels change across the menstrual cycle?
+
+**Tables used:** `00_sample_ids_period` + `02_luminex_period`
+
+**Relevant variables:** `time_point`, `cytokine`, `conc`, `limits`
+
+**Why it's interesting:** The menstrual cycle is driven by hormones that rise and fall — and these hormones affect the immune system. You might find that inflammatory cytokines like IL-1a or IL-6 are highest at `onset` (when the uterus is shedding its lining, which is an inflammatory event) and lowest at `week_post`. IFNg might follow a different pattern since it's anti-viral rather than inflammatory. The fact that each person was measured at all 4 time points means you can plot *within-person change* over the cycle, which is much cleaner than comparing different people at different time points.
+
+------------------------------------------------------------------------
+
+### 2. Does hormonal birth control change the immune profile?
+
+**Tables used:** `00_sample_ids_period` + `01_participant_metadata_period` + `02_luminex_period` (and/or `03_flow_cytometry_period`)
+
+**Relevant variables:** `arm` (`birth_control` vs `no_birth_control`), `cytokine`, `conc`, or any of the flow cytometry cell counts
+
+**Why it's interesting:** Hormonal birth control suppresses the natural menstrual hormone cycle (no ovulation, steady hormone levels). If immune cell populations or cytokine levels are tied to those hormones, then people on birth control might show a *flatter* line across the cycle — less fluctuation. This would tell us something about how normal cycle hormones regulate immunity. You could compare: do birth control users have higher or lower neutrophils at `onset`? Do their CD4⁺ T cells stay more constant across time points?
+
+------------------------------------------------------------------------
+
+### 3. Are cytokines correlated with immune cell counts?
+
+**Tables used:** `00_sample_ids_period` + `02_luminex_period` + `03_flow_cytometry_period`
+
+**Relevant variables:** `cytokine`, `conc`, all flow cytometry columns (especially `cd45_positive`, `neutrophils`, `cd4_t_cells`, `cd8_t_cells`)
+
+**Why it's interesting:** Cytokines are the signals, and immune cells are the responders. If IFNg is high, you might see more CD8⁺ T cells (killer cells). This question lets you test whether the signalling proteins actually match the cell populations — which would make biological sense. To do this, you'd join all tables on `sample_id` so each row has both cytokine concentrations and cell counts, then make a scatter plot (e.g., IFNg vs CD8⁺ T cells).
+
+------------------------------------------------------------------------
+
+### 4. Do participants with PCOS have a different immune signature?
+
+**Tables used:** `00_sample_ids_period` + `01_participant_metadata_period` + `02_luminex_period` (and/or `03_flow_cytometry_period`)
+
+**Relevant variables:** `pcos_status`, `cytokine`, `conc`, flow cytometry cell counts
+
+**Why it's interesting:** PCOS (Polycystic Ovary Syndrome) is known to involve chronic low-grade inflammation. If that's true, participants with PCOS might show elevated levels of inflammatory cytokines (IL-6, TNFa) or a different balance of T cells compared to participants without PCOS. You'd also want to check whether the PCOS participants are evenly split between the `birth_control` and `no_birth_control` groups — if not, you'd need to account for that. Even with a small sample, a big difference could be visible in a box plot.
+
+------------------------------------------------------------------------
+
+### 5. Can we predict cycle phase from immune markers?
+
+**Tables used:** `00_sample_ids_period` + `02_luminex_period` + `03_flow_cytometry_period`
+
+**Relevant variables:** `time_point` (as the outcome), all cytokine concentrations and cell counts (as predictors)
+
+**Why it's interesting:** This flips the question around. Instead of asking "does the cycle affect immunity?", you ask "given a sample's immune profile, can we tell which phase of the cycle it came from?" Menstruation itself is inflammatory — so `onset` samples might have a distinct signature (high IL-1a, high neutrophils) that separates them from other time points. This is a good introduction to classification, since the 4 time points give you a manageable multi-class problem with about 27 samples per class. You could start simple: just try to predict whether a sample is `onset` vs everything else.
+
+------------------------------------------------------------------------
+
+### Quick-reference table
+
+| \# | Question | Tables needed | Main variables |
+|------------------|------------------|------------------|-------------------|
+| 1 | Cytokines across the cycle | sample_ids + Luminex | `time_point`, `cytokine`, `conc` |
+| 2 | Birth control effect | sample_ids + metadata + Luminex/flow | `arm`, `time_point`, `conc` or cell counts |
+| 3 | Cytokine–cell correlations | sample_ids + Luminex + flow | all measurement columns |
+| 4 | PCOS immune signature | sample_ids + metadata + Luminex/flow | `pcos_status`, `conc` or cell counts |
+| 5 | Predicting cycle phase | sample_ids + Luminex + flow | `time_point` (outcome), all measurements (predictors) |
+
+------------------------------------------------------------------------
+
+# Summary: How the files fit together
+
+Here's how the four files in the menstruation study relate to one another:
+
+| File | Key column | Links to |
+|-----------------------------|------------------|-------------------------|
+| `00_sample_ids_period` | `pid` | → `01_participant_metadata_period` (by pid) |
+| `00_sample_ids_period` | `sample_id` | → `02_luminex_period` (by sample_id) |
+| `00_sample_ids_period` | `sample_id` | → `03_flow_cytometry_period` (by sample_id) |
+| `01_participant_metadata_period` | `pid` | → linked from `00_sample_ids_period` |
+
+In short: `00_sample_ids_period` is the central file — **`sample_id`** connects to the measurement files (Luminex and flow cytometry), while **`pid`** connects to the participant metadata.
+
+------------------------------------------------------------------------
+
+## 📊 Table 1: Participant Demographics by Birth Control Group
+
+```{r}
+#| label: tbl-demographics
+#| tbl-cap: "Participant demographics by birth control group"
+
+library(gtsummary)
+
+meta_period %>%
+  select(-pid) %>%
+  tbl_summary(
+    by = arm,
+    statistic = list(all_continuous() ~ "{mean} ({sd})"),
+    digits = list(all_continuous() ~ 1)
+  ) %>%
+  add_p(test = list(all_categorical() ~ "fisher.test", age ~ "t.test")) %>%
+  bold_labels()
+```
+
+This table summarises participant demographics split by whether they use hormonal birth control (`birth_control`) or not (`no_birth_control`). Continuous variables (age) show **mean (SD)** instead of median/IQR. The `add_p()` function uses a **two-sample t-test** for age and Fisher's exact test for categorical variables. Row labels are bolded for a cleaner look.
+
+------------------------------------------------------------------------
+
+# 🧪 Session 2 Analysis: Do cytokine levels change across the menstrual cycle?
+
+Now we turn to the biological question: **Do cytokine levels change across the menstrual cycle?** This section builds comparison figures with `ggpubr`, examines distributions, and recommends the best candidate cytokine for a formal model.
+
+```{r}
+#| label: session2-setup
+#| include: false
+library(ggpubr)
+
+# Build a joined dataset: every cytokine measurement with its time_point
+cytokine_df <- luminex_period |>
+  left_join(sample_ids_period |> select(sample_id, pid, time_point, arm), by = "sample_id") |>
+  mutate(time_point = fct_relevel(time_point, "week_prior", "onset", "end_bleeding", "week_post"))
+```
+
+------------------------------------------------------------------------
+
+## 1. Which cytokines change across the cycle? — A first look
+
+First, a quick check: cytokine data is usually heavily **right-skewed** (most values cluster near zero, a few are very high). So we'll look at the data on a **log scale** — this spreads the values out and makes patterns easier to see.
+
+Let's compare all 8 cytokines side by side across the 4 time points.
+
+```{r}
+#| label: fig-all-cytokines-panel
+#| fig-width: 12
+#| fig-height: 10
+#| fig-cap: "Log-transformed cytokine levels across the menstrual cycle. P-values from Kruskal-Wallis test (compares all 4 time points at once)."
+
+cytokines <- unique(cytokine_df$cytokine)
+
+plot_list_log <- map(cytokines, function(cyto) {
+  d <- cytokine_df |> filter(cytokine == cyto)
+  y_max <- max(log10(d$conc), na.rm = TRUE)
+  
+  ggboxplot(d,
+    x = "time_point", y = "conc",
+    fill = "time_point", palette = "jco",
+    add = "jitter", add.params = list(size = 1.2, alpha = 0.5)
+  ) +
+  scale_y_continuous(trans = "log10") +
+  stat_compare_means(method = "kruskal.test",
+                     label.x = 1.5, label.y = y_max * 0.95) +
+  labs(title = cyto, x = "", y = "pg/mL (log scale)") +
+  theme(legend.position = "none")
+})
+
+ggarrange(plotlist = plot_list_log, ncol = 4, nrow = 2)
+```
+
+**What this tells us:** Almost all cytokines actually DO change across the cycle — but they change in opposite directions. Two clear patterns stand out:
+
+- **Group A** (IL-1a, IL-1b, IL-6, TNFa, IFNg): These are **higher during menstruation** (onset and end_bleeding) and lower before and after.
+- **Group B** (IP-10, MIG, MIP-3a): These are **lower during menstruation** and higher before and after.
+
+Let's look at each group more closely.
+
+------------------------------------------------------------------------
+
+## 2. Group A — Cytokines that go UP during menstruation
+
+```{r}
+#| label: fig-group-a
+#| fig-width: 12
+#| fig-height: 5
+#| fig-cap: "Group A: IL-1a, IL-1b, IL-6, TNFa, and IFNg — all higher during menstruation (onset and end_bleeding) and lower in the non-bleeding phases. Pairwise Wilcoxon tests compare 'non-bleeding' (week_prior + week_post) vs 'bleeding' (onset + end_bleeding)."
+
+group_a <- c("IL-1a", "IL-1b", "IL-6", "TNFa", "IFNg")
+
+plot_a <- map(group_a, function(cyto) {
+  d <- cytokine_df |> filter(cytokine == cyto)
+  
+  ggboxplot(d,
+    x = "time_point", y = "conc",
+    fill = "time_point", palette = "npg",
+    add = "jitter", add.params = list(size = 1.2, alpha = 0.4),
+    outlier.shape = NA
+  ) +
+  scale_y_continuous(trans = "log10") +
+  stat_compare_means(
+    method = "wilcox.test",
+    comparisons = list(c("week_prior", "onset"), c("week_prior", "end_bleeding"),
+                       c("week_post", "onset"), c("week_post", "end_bleeding")),
+    label = "p.signif",
+    symnum.args = list(cutpoints = c(0, 0.001, 0.01, 0.05, 1),
+                       symbols = c("***", "**", "*", "ns"))
+  ) +
+  labs(title = cyto, x = "", y = "pg/mL (log)") +
+  theme(legend.position = "none")
+})
+
+ggarrange(plotlist = plot_a, ncol = 5, nrow = 1)
+```
+
+**What this tells us:** These 5 cytokines are clearly **higher when the participant is bleeding** (onset and end_bleeding) and lower in the week before and the week after. The differences are statistically significant for almost every comparison (shown by the stars). This makes biological sense: IL-1a, IL-1b, IL-6, and TNFa are **inflammatory signals** — they tell the immune system there is tissue being broken down. IFNg is an anti-viral signal that also rises during inflammation.
+
+------------------------------------------------------------------------
+
+## 3. Group B — Cytokines that go DOWN during menstruation
+
+```{r}
+#| label: fig-group-b
+#| fig-width: 8
+#| fig-height: 5
+#| fig-cap: "Group B: IP-10, MIG, and MIP-3a — all lower during menstruation and higher in the non-bleeding phases. Pairwise Wilcoxon tests compare non-bleeding vs bleeding phases."
+
+group_b <- c("IP-10", "MIG", "MIP-3a")
+
+plot_b <- map(group_b, function(cyto) {
+  d <- cytokine_df |> filter(cytokine == cyto)
+  
+  ggboxplot(d,
+    x = "time_point", y = "conc",
+    fill = "time_point", palette = "npg",
+    add = "jitter", add.params = list(size = 1.2, alpha = 0.4),
+    outlier.shape = NA
+  ) +
+  scale_y_continuous(trans = "log10") +
+  stat_compare_means(
+    method = "wilcox.test",
+    comparisons = list(c("week_prior", "onset"), c("week_prior", "end_bleeding"),
+                       c("week_post", "onset"), c("week_post", "end_bleeding")),
+    label = "p.signif",
+    symnum.args = list(cutpoints = c(0, 0.001, 0.01, 0.05, 1),
+                       symbols = c("***", "**", "*", "ns"))
+  ) +
+  labs(title = cyto, x = "", y = "pg/mL (log)") +
+  theme(legend.position = "none")
+})
+
+ggarrange(plotlist = plot_b, ncol = 3, nrow = 1)
+```
+
+**What this tells us:** These 3 cytokines go in the **opposite direction** — they are **lower during menstruation** and higher before and after. IP-10, MIG, and MIP-3a are all **chemokines** — signals that attract specific immune cells to where they're needed. One possible explanation: during menstruation, the body is focused on tissue breakdown and repair (Group A inflammatory signals), while the chemokines that recruit certain cell types are turned down.
+
+Of the three, **IP-10** has the cleanest pattern (tightest boxes, clearest drop at onset) and the fewest undetectable measurements (only 6 out of 108).
+
+------------------------------------------------------------------------
+
+## 4. Combined figure — all cytokines, grouped by direction
+
+```{r}
+#| label: fig-all-cytokines-pairwise
+#| fig-width: 12
+#| fig-height: 10
+#| fig-cap: "All 8 cytokines sorted by their pattern. The first 5 (Group A) go up during menstruation; the last 3 (Group B) go down. Stars show pairwise Wilcoxon tests: * p<0.05, ** p<0.01, *** p<0.001, ns = not significant."
+
+# Create a factor to order cytokines by their pattern
+cytokine_df <- cytokine_df |>
+  mutate(cytokine_group = case_when(
+    cytokine %in% c("IL-1a", "IL-1b", "IL-6", "TNFa", "IFNg") ~ "Group A — Higher during menstruation",
+    cytokine %in% c("IP-10", "MIG", "MIP-3a") ~ "Group B — Lower during menstruation",
+    TRUE ~ "other"
+  ))
+
+
+pairwise_comps <- list(
+  c("week_prior", "onset"),
+  c("week_prior", "end_bleeding"),
+  c("week_post", "onset"),
+  c("week_post", "end_bleeding")
+)
+
+cytokine_df |>
+  ggplot(aes(x = time_point, y = conc, fill = time_point)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = NA) +
+  geom_jitter(size = 1, alpha = 0.3, width = 0.15) +
+  facet_wrap(~ cytokine + cytokine_group, scales = "free_y", ncol = 4,
+             labeller = labeller(.multi_line = TRUE)) +
+  scale_y_continuous(trans = "log10") +
+  stat_compare_means(method = "wilcox.test",
+                     comparisons = pairwise_comps,
+                     label = "p.signif",
+                     symnum.args = list(
+                       cutpoints = c(0, 0.001, 0.01, 0.05, 1),
+                       symbols   = c("***", "**", "*", "ns")
+                     )) +
+  scale_fill_manual(values = c(
+    "week_prior"  = "#3C5488",
+    "onset"       = "#E64B35",
+    "end_bleeding" = "#4DBBD5",
+    "week_post"   = "#00A087"
+  )) +
+  scale_x_discrete(labels = c(
+    "week_prior"  = "Week\nPrior",
+    "onset"       = "Onset",
+    "end_bleeding" = "End\nBleeding",
+    "week_post"   = "Week\nPost"
+  )) +
+  labs(
+    title    = "All 8 Cytokines — Two Opposite Patterns",
+    subtitle = "Group A (top row): higher during menstruation. Group B (bottom row): lower during menstruation. * p<0.05, ** p<0.01, *** p<0.001, ns = not significant",
+    x        = "Time Point",
+    y        = "Concentration (pg/mL, log scale)"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(face = "bold", size = 11)
+  )
+```
+
+**What this tells us:** Every single cytokine in this dataset changes across the menstrual cycle — they just change in different directions. The division into two groups is remarkably clean: no cytokine falls in between.
+
+------------------------------------------------------------------------
+
+## 5. Summary — So do cytokine levels change across the menstrual cycle?
+
+**Yes — all of them change, but in two opposite patterns.**
+
+| Group | Pattern | Cytokines |
+|-------|---------|-----------|
+| **Group A — Inflammatory** ⬆️ | Higher during menstruation, lower before/after | IL-1a, IL-1b, IL-6, TNFa, IFNg |
+| **Group B — Chemokines** ⬇️ | Lower during menstruation, higher before/after | **IP-10**, MIG, MIP-3a |
+
+### Which cytokine should we use in a formal model?
+
+**IP-10** is still the best choice for a formal model, for these reasons:
+
+| Reason | Details |
+|--------|---------|
+| **Cleanest pattern** | IP-10 has the tightest boxes and clearest separation between bleeding and non-bleeding phases |
+| **Least censored data** | Only 6 out of 108 measurements are "below detection" — most others have many more |
+| **Opposite direction** | Since IP-10 goes DOWN when the others go UP, it captures a different biological process |
+| **Biological interest** | IP-10 (CXCL10) is a well-studied chemokine linked to immune cell recruitment |
+
+But there's also a strong case for picking **IL-1a** or **IL-6** as well — they show the same pattern as the majority of cytokines and are classic inflammatory markers. A formal model could also analyze all 8 together (e.g., using a grouped outcome) to see if the two opposite patterns hold up after adjusting for individual differences.
+
+------------------------------------------------------------------------
+
+## 6. Formal Model — Linear Mixed Model with IP-10
+
+### What's an intercept?
+
+Think of an intercept as a **starting point** or **baseline** for each person.
+
+- **Fixed intercept** — the average IP-10 level when everything else is at its reference level (e.g., at `week_prior` for someone not on birth control). This is like the "overall average starting point" for the whole group.
+- **Random intercept `(1 | pid)`** — allows **each person to have their own baseline**. Some people naturally have higher IP-10, some have lower. This accounts for that. It's the key to handling repeated measures.
+
+Think of it this way: if you measure someone's IP-10 at 4 time points, those 4 measurements are more similar to each other than to measurements from a different person. A random intercept tells the model "treat samples from the same person as related, not independent."
+
+### The model
+
+```{r}
+#| label: model-ip10
+#| warning: false
+#| message: false
+
+library(lme4)
+library(lmerTest)  # gives p-values in summary output
+
+# Prepare IP-10 data
+ip10_model_data <- cytokine_df |>
+  filter(cytokine == "IP-10") |>
+  mutate(log10_conc = log10(conc))
+
+# Fit the linear mixed model
+# log10(IP-10) ~ time_point + arm + (1 | pid)
+#   - time_point: does IP-10 change across the cycle? (our main question)
+#   - arm: adjust for birth control vs no birth control
+#   - (1 | pid): each person gets their own baseline (random intercept)
+model <- lmer(log10_conc ~ time_point + arm + (1 | pid), data = ip10_model_data)
+
+# Show the results
+summary(model)
+```
+
+### What the output tells us
+
+```{r}
+#| label: model-table
+#| tbl-cap: "Linear mixed model results. log₁₀(IP-10) is the outcome. The reference time point is week_prior (pre-period). The reference arm is no_birth_control."
+
+# Get fixed effects as a clean table
+library(broom.mixed)
+
+tidy(model, conf.int = TRUE, effects = "fixed") |>
+  select(-effect) |>
+  mutate(across(where(is.numeric), ~ round(., 4))) |>
+  knitr::kable(col.names = c("Term", "Estimate", "Std. Error", "t-value", "df", "p-value", "CI lower", "CI upper"))
+```
+
+**How to read this table:**
+
+| Term | What it means |
+|------|---------------|
+| **Intercept** | The average log₁₀(IP-10) at `week_prior` for the `no_birth_control` group. This is the baseline. |
+| **time_point: onset** | How much IP-10 changes from `week_prior` to `onset`, holding everything else constant |
+| **time_point: end_bleeding** | How much IP-10 changes from `week_prior` to `end_bleeding` |
+| **time_point: week_post** | How much IP-10 changes from `week_prior` to `week_post` |
+| **arm: birth_control** | The difference in IP-10 between birth control users and non-users |
+| **p-value** | If p < 0.05, the change is unlikely to be due to random chance |
+
+### Checking the model assumptions
+
+```{r}
+#| label: model-diagnostics
+#| fig-width: 10
+#| fig-height: 4
+#| fig-cap: "Model diagnostics: (left) residuals should be roughly symmetric around zero; (right) Q-Q plot checks if residuals are approximately normal."
+
+par(mfrow = c(1, 2))
+plot(model, which = 1, main = "Residuals vs Fitted")  # check for constant spread
+plot(model, which = 2, main = "Q-Q Plot")              # check for normality
+```
+
+**What to look for:**
+- The **residuals vs fitted** plot should show points scattered evenly around the horizontal line at 0 — no obvious funnel shape or curve
+- The **Q-Q plot** should show points following the diagonal line — this means the residuals are approximately normal
+
+### Answering the research question
+
+Based on this model, we can say whether IP-10 changes across the menstrual cycle, by how much, and whether the difference is statistically significant after accounting for:
+- Each person's natural baseline level (random intercept)
+- Birth control use (arm)
+

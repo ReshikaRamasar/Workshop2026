@@ -26,38 +26,38 @@ table_02
 
 **1. How many rows? What does one row represent?**
 
-*Your answer:*
+The table has 132 rows. Each row represents details for each participant.
 
 **2. After `table_02 |> filter(time_point == "baseline")`, how many rows? What does each row represent now?**
 
-*Your answer:*
+This picks rows that have baseline for the timepoint. 
 
 **3. After `table_02 |> count(arm)`, how many rows? What does each row represent now?**
 
-*Your answer:*
+ This counts how many rows have treatment arm.
 
 ## Part 2 — Build the pipeline
 
 Each step adds one verb on top of the previous pipeline. Run after each step.
 
 ```{r}
-# step 1: pipe table_02 into head()
+table_02
 ```
 
 ```{r}
-# step 2: filter to the baseline time point
+table_02 |> filter (time_point == "baseline")
 ```
 
 ```{r}
-# step 3: add select() for pid, arm, ph, nugent_score, crp_blood
+table_02 |> select (pid, arm, ph,nugent_score, crp_blood) 
 ```
 
 ```{r}
-# step 4: add mutate() for high_ph = if_else(ph >= 4.5, "yes", "no")
+table_02 |> mutate (high_ph = if_else(ph>=4.5, "yes", "no"))
 ```
 
 ```{r}
-# step 5: add arrange(desc(ph))
+table_02 |> arrange(desc(ph))
 ```
 
 ```{r}
